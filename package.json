@@ -1,0 +1,14 @@
+{
+  "name": "com.sarteck.dotnow",
+  "version": "0.0.9-0.1",
+  "displayName": "Dotnow interpreter",
+  "dependencies": {
+  },
+  "keywords": [],
+  "author": {
+    "name": "Sarteck",
+    "email": "sarteckcompany@gmail.com",
+    "url": "https://github.com/styrbo/dotnow-interpreter"
+  },
+  "type": "library"
+}
