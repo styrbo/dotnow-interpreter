@@ -1,5 +1,5 @@
-﻿
-#if UNITY_EDITOR && UNITY_DISABLE == false
+﻿#if !UNITY_DISABLE
+#if UNITY_EDITOR && NET_4_6
 using System.CodeDom;
 using System.Reflection;
 
@@ -50,7 +50,7 @@ namespace dotnow.BindingGenerator.Emit
                 MemberAttributes attributes = 0;
 
                 attributes |= MemberAttributes.Public;
-                attributes |= MemberAttributes.Override;
+                attributes |= MemberAttributes.Final;
 
                 codeProperty.Attributes = attributes;
             }
@@ -92,4 +92,5 @@ namespace dotnow.BindingGenerator.Emit
         }
     }
 }
+#endif
 #endif

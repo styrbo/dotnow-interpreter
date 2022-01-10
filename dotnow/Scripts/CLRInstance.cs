@@ -169,6 +169,17 @@ namespace dotnow
             return fields[fieldOffset].UnboxAsTypeSlow(field.FieldType);
         }
 
+        public void GetFieldValueStack(CLRField field, ref StackData value)
+        {
+            int fieldOffset = field.GetFieldOffset();
+
+            if (fieldOffset == -1)
+                throw new TargetException("The specified instance does not declare the field: " + field);
+
+            // Copy stack value
+            value = fields[fieldOffset];
+        }
+
 
         public void SetFieldValue(CLRField field, object value)
         {
@@ -183,7 +194,7 @@ namespace dotnow
 
         public override string ToString()
         {
-            return string.Format("{0}({1})", nameof(CLRInstance), type);
+            return string.Format("{0}({1})", "CLRInstance", type);
         }
 
         private object CreateBaseProxyInstance(AppDomain domain, Type baseType)

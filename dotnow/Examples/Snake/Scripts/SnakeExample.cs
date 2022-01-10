@@ -1,4 +1,5 @@
-﻿#if (UNITY_EDITOR || UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID || UNITY_WSA || UNITY_WEBGL) && UNITY_DISABLE == false
+﻿#if !UNITY_DISABLE
+#if (UNITY_EDITOR || UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID || UNITY_WSA || UNITY_WEBGL)
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -50,7 +51,7 @@ namespace dotnow.Examples
             Instantiate<GameObject>(null);
             Instantiate<GameObject>(null, Vector3.zero, Quaternion.identity);
             Instantiate<GameObject>(null, Vector3.zero, Quaternion.identity, null);
-            Vector2Int.RoundToInt(default);
+            Vector2Int.RoundToInt(default(Vector2Int));
 
             // Hack to force AOT compilation of generic type with specific generic argument which is required by the game a more permanent fix is required!
             // Perhaps use List<object> in such cases for support for non-compiled AOT generics
@@ -58,4 +59,5 @@ namespace dotnow.Examples
         }
     }
 }
+#endif
 #endif

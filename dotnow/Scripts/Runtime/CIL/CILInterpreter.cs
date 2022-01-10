@@ -2,7 +2,6 @@
 using System.Reflection;
 using Mono.Cecil.Cil;
 using dotnow.Reflection;
-using static dotnow.Runtime.ExecutionEngine;
 
 namespace dotnow.Runtime.CIL
 {
@@ -10,10 +9,10 @@ namespace dotnow.Runtime.CIL
     {
         // Methods
 #if UNSAFE
-        internal unsafe static void ExecuteInterpreted(AppDomain domain, ExecutionEngine engine, ref ExecutionFrame frame, ref CILOperation[] instructions, ref CLRExceptionHandler[] exceptionHandlers, in DebugFlags debugFlags)
+        internal unsafe static void ExecuteInterpreted(AppDomain domain, ExecutionEngine engine, ref ExecutionFrame frame, ref CILOperation[] instructions, ref CLRExceptionHandler[] exceptionHandlers, DebugFlags debugFlags)
 #else
 
-        internal static void ExecuteInterpreted(AppDomain domain, ExecutionEngine engine, ref ExecutionFrame frame, ref CILOperation[] instructions, ref CLRExceptionHandler[] exceptionHandlers, in DebugFlags debugFlags)
+        internal static void ExecuteInterpreted(AppDomain domain, ExecutionEngine engine, ref ExecutionFrame frame, ref CILOperation[] instructions, ref CLRExceptionHandler[] exceptionHandlers, ExecutionEngine.DebugFlags debugFlags)
 #endif
         {
             // Locals
@@ -57,8 +56,10 @@ namespace dotnow.Runtime.CIL
 
 
                 /// ### WARNING - Only enable this for small snippets of non-looping (Or very shallow looping) code otherwise the performance and memory allocations will be horrific and likley cause an editor crash
-#if (UNITY_EDITOR || UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID || UNITY_WSA || UNITY_WEBGL) && UNITY_PROFILE && UNITY_PROFILE_INSTRUCTIONS && UNITY_DISABLE == false
+#if !UNITY_DISABLE
+#if (UNITY_EDITOR || UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID || UNITY_WSA || UNITY_WEBGL) && UNITY_PROFILE && UNITY_PROFILE_INSTRUCTIONS
                 //UnityEngine.Profiling.Profiler.BeginSample(instruction.instructionName);
+#endif
 #endif
 
                 // Switch (opCode)
@@ -703,6 +704,42 @@ namespace dotnow.Runtime.CIL
                         {
                             stack[stackPtr - 1].refValue = stack[--stackPtr].Box();
                             stack[stackPtr++].type = StackData.ObjectType.RefBoxed;
+                            break;
+                        }
+
+                    case Code.Castclass:
+                        {
+                            CLRTypeInfo castType = instruction.typeOperand;
+
+                            // Pop object
+                            temp = stack[--stackPtr];
+
+                            // Get ref
+                            object inst = temp.Box();
+
+                            // Chekc for null
+                            if(inst != null)
+                            {
+                                // Get interpreted type
+                                Type instType = inst.GetInterpretedType();
+
+                                // Check for equal or assignable (May need more work to support interfaces??)
+                                if(castType.type == instType || instType.IsSubclassOf(castType.type) == true)
+                                {
+                                    // Push object
+                                    stack[stackPtr++] = temp;
+                                }
+                                else
+                                {
+                                    // Invalid cast
+                                    throw new InvalidCastException();
+                                }
+                            }
+                            else
+                            {
+                                // Null reference can be pushed pack onto top of stack - should not fail
+                                stack[stackPtr++] = temp;
+                            }
                             break;
                         }
 
@@ -2259,7 +2296,14 @@ namespace dotnow.Runtime.CIL
                                 break;
                             }
 
-                            StackData.AllocTyped(ref stack[stackPtr++], fieldAccess.fieldTypeInfo, fieldAccess.targetField.GetValue(null));
+                            if (fieldAccess.isClrField == true)
+                            {
+                                (fieldAccess.targetField as CLRField).GetValueStack(default(StackData), ref stack[stackPtr++]);
+                            }
+                            else
+                            {
+                                StackData.AllocTyped(ref stack[stackPtr++], fieldAccess.fieldTypeInfo, fieldAccess.targetField.GetValue(null));
+                            }
                             break;
                         }
 
@@ -2276,13 +2320,36 @@ namespace dotnow.Runtime.CIL
 
                             temp = stack[--stackPtr];       // inst
 
-                            if(temp.type == StackData.ObjectType.ByRef)
+                            if (fieldAccess.isClrField == true)
                             {
-                                StackData.AllocTyped(ref stack[stackPtr++], fieldAccess.fieldTypeInfo, fieldAccess.targetField.GetValue(((IByRef)temp.refValue).GetReferenceValue().Box()));
-                                break;
-                            }
+                                if (temp.type == StackData.ObjectType.ByRef)
+                                {
+                                    (fieldAccess.targetField as CLRField).GetValueStack(((IByRef)temp.refValue).GetReferenceValue(), ref stack[stackPtr++]);
+                                    break;
+                                }
 
-                            StackData.AllocTyped(ref stack[stackPtr++], fieldAccess.fieldTypeInfo, fieldAccess.targetField.GetValue(temp.Box()));
+                                (fieldAccess.targetField as CLRField).GetValueStack(temp, ref stack[stackPtr++]);
+                            }
+                            else
+                            {
+                                if (temp.type == StackData.ObjectType.ByRef)
+                                {
+                                    object instByRef = ((IByRef)temp.refValue).GetReferenceValue().Box();
+
+                                    if (fieldAccess.isClrField == false)
+                                        instByRef = instByRef.Unwrap();
+
+                                    StackData.AllocTyped(ref stack[stackPtr++], fieldAccess.fieldTypeInfo, fieldAccess.targetField.GetValue(instByRef));
+                                    break;
+                                }
+
+                                object inst = temp.Box();
+
+                                if (fieldAccess.isClrField == false)
+                                    inst = inst.Unwrap();
+
+                                StackData.AllocTyped(ref stack[stackPtr++], fieldAccess.fieldTypeInfo, fieldAccess.targetField.GetValue(inst));
+                            }
                             break;
                         }
 
@@ -2332,11 +2399,23 @@ namespace dotnow.Runtime.CIL
 
                             if (temp.refValue is IByRef)
                             {
-                                fieldAccess.targetField.SetValue((((IByRef)temp.Box()).GetReferenceValue().refValue), right.UnboxAsType(fieldAccess.fieldTypeInfo));
+                                object inst = (((IByRef)temp.Box()).GetReferenceValue().refValue);
+
+                                // Check for non-clr field
+                                if (fieldAccess.isClrField == false)
+                                    inst = inst.Unwrap();
+
+                                fieldAccess.targetField.SetValue(inst, right.UnboxAsType(fieldAccess.fieldTypeInfo));
                             }
                             else
                             {
-                                fieldAccess.targetField.SetValue(temp.Box(), right.UnboxAsType(fieldAccess.fieldTypeInfo));
+                                object inst = temp.Box();
+
+                                // Check for non-clr field
+                                if (fieldAccess.isClrField == false)
+                                    inst = inst.Unwrap();
+
+                                fieldAccess.targetField.SetValue(inst, right.UnboxAsType(fieldAccess.fieldTypeInfo));
                             }
                             break;
                         }
@@ -2383,12 +2462,14 @@ namespace dotnow.Runtime.CIL
 
                     case Code.Ldtoken:
                         {
-                            if(instruction.objectOperand is CILFieldAccess access)
+                            CILFieldAccess access = instruction.objectOperand as CILFieldAccess;
+                            CILMethodInvocation invocation = instruction.objectOperand as CILMethodInvocation;
+                            if(access != null)
                             {
                                 stack[stackPtr].refValue = access.targetField;
                                 stack[stackPtr++].type = StackData.ObjectType.Ref;
                             }
-                            else if(instruction.objectOperand is CILMethodInvocation invocation)
+                            else if(invocation != null)
                             {
                                 stack[stackPtr].refValue = invocation.targetMethod;
                                 stack[stackPtr++].type = StackData.ObjectType.Ref;
@@ -2643,7 +2724,8 @@ namespace dotnow.Runtime.CIL
                                 }
 
                                 // Dereference by ref instance
-                                if (instance is IByRef @ref)
+                                IByRef @ref = instance as IByRef;
+                                if (@ref != null)
                                     instance = @ref.GetReferenceValue().UnboxAsType(Type.GetTypeCode(targetMethod.DeclaringType));//.Box();
 
                                 // Now we can invoke the method safely
@@ -2842,19 +2924,21 @@ namespace dotnow.Runtime.CIL
 
 
                 /// ### WARNING - Only enable this for small snippets of non-looping (Or very shallow looping) code otherwise the performance and memory allocations will be horrific and likley cause an editor crash
-#if (UNITY_EDITOR || UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID || UNITY_WSA || UNITY_WEBGL) && UNITY_PROFILE && UNITY_PROFILE_INSTRUCTIONS && UNITY_DISABLE == false
+#if !UNITY_DISABLE
+#if (UNITY_EDITOR || UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID || UNITY_WSA || UNITY_WEBGL) && UNITY_PROFILE && UNITY_PROFILE_INSTRUCTIONS
                 //UnityEngine.Profiling.Profiler.EndSample();
+#endif
 #endif
 
                 // Next instruction
                 instructionPtr++;
 
                 // Check for debugger attached
-                if ((debugFlags & DebugFlags.DebuggerAttached) == 0)
+                if ((debugFlags & ExecutionEngine.DebugFlags.DebuggerAttached) == 0)
                     continue;
 
                 // Check for paused
-                if ((debugFlags & DebugFlags.DebugPause) != 0 || (debugFlags & DebugFlags.DebugStepOnce) != 0)
+                if ((debugFlags & ExecutionEngine.DebugFlags.DebugPause) != 0 || (debugFlags & ExecutionEngine.DebugFlags.DebugStepOnce) != 0)
                 {
                     // Save execution state
                     engine.SaveExecutionState(domain, frame, instructions, exceptionHandlers);
