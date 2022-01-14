@@ -1,0 +1,17 @@
+{
+    "name": "Dotnow.Editor",
+    "references": [
+        "GUID:b0c5596bf40b6cf42a1db16e4058af63"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
