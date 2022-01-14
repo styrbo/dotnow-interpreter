@@ -152,7 +152,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b34763d6818fa84ba90c777df778122, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  assemblyModule: {fileID: 4900000, guid: 751cf13bd2751ae4182d22440d19ea6b, type: 3}
+  assemblyModule: {fileID: 4900000, guid: 399424665921cdb4aa079637feac92a3, type: 3}
 --- !u!4 &703948347
 Transform:
   m_ObjectHideFlags: 0
