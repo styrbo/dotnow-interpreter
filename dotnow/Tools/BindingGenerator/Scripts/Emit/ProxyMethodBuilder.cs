@@ -1,5 +1,5 @@
-﻿
-#if UNITY_EDITOR && UNITY_DISABLE == false
+﻿#if !UNITY_DISABLE
+#if UNITY_EDITOR && NET_4_6
 using System.Reflection;
 using System.CodeDom;
 using System.Runtime.InteropServices;
@@ -68,6 +68,17 @@ namespace dotnow.BindingGenerator.Emit
                 codeMethod.Parameters.Add(codeParameter);
             }
 
+            // Null check
+            if (method.ReturnType == typeof(void))
+            {
+                codeMethod.Statements.Add(new CodeConditionStatement(
+                    new CodeBinaryOperatorExpression(
+                        new CodeFieldReferenceExpression(new CodeThisReferenceExpression(), "instance"),
+                        CodeBinaryOperatorType.ValueEquality,
+                        new CodePrimitiveExpression(null)),
+                            new CodeMethodReturnStatement()));
+            }
+
             // Method body
             codeMethod.Statements.Add(new CodeConditionStatement(
                 new CodeBinaryOperatorExpression(
@@ -96,6 +107,15 @@ namespace dotnow.BindingGenerator.Emit
             args[1] = new CodeArrayCreateExpression(
                 new CodeTypeReference(typeof(object)), argList);
 
+
+            // Null check before invoke
+            codeMethod.Statements.Add(new CodeConditionStatement(
+                    new CodeBinaryOperatorExpression(
+                        new CodeFieldReferenceExpression(new CodeThisReferenceExpression(), variableName),
+                        CodeBinaryOperatorType.ValueEquality,
+                        new CodePrimitiveExpression(null)),
+                            method.ReturnType != typeof(void) ? new CodeMethodReturnStatement(new CodeDefaultValueExpression(new CodeTypeReference(method.ReturnType))) : new CodeMethodReturnStatement()));
+
             if (method.ReturnType != typeof(void))
             {
                 codeMethod.Statements.Add(new CodeMethodReturnStatement(
@@ -116,4 +136,5 @@ namespace dotnow.BindingGenerator.Emit
         }
     }
 }
+#endif
 #endif

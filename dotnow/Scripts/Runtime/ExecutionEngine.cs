@@ -177,9 +177,11 @@ namespace dotnow.Runtime
                 }
                 catch (Exception e)
                 {
-#if (UNITY_EDITOR || UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID || UNITY_WSA || UNITY_WEBGL) && UNITY_DISABLE == false
+#if !UNITY_DISABLE
+#if (UNITY_EDITOR || UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID || UNITY_WSA || UNITY_WEBGL)
                     UnityEngine.Debug.LogError("At method body: " + ((frame.Method != null) ? frame.Method.ToString() : "<Unknown>"));
                     UnityEngine.Debug.LogError("At instruction: " + ((frame.instructionPtr < methodInstructions.Length) ? methodInstructions[frame.instructionPtr].ToString() : "<Unknown>"));
+#endif
 #endif
 
                     // Handle any exceptions
@@ -196,7 +198,8 @@ namespace dotnow.Runtime
         private ExceptionHandlingResult HandleException(AppDomain domain, ExecutionFrame frame, CILOperation[] instructions, CLRExceptionHandler[] exceptionHandlers, Exception e)
         {
             // Goto exception handler body
-            frame.instructionPtr += GotoHandler(frame, e, exceptionHandlers, out CLRExceptionHandler handler);
+            CLRExceptionHandler handler;
+            frame.instructionPtr += GotoHandler(frame, e, exceptionHandlers, out handler);
 
             // Check for valid handler
             if (handler == null || handler.ExceptionType == null)

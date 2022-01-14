@@ -108,6 +108,11 @@ namespace dotnow.Reflection
             return attributeProvider.Value.GetAttributeInstancesOfType(attributeType);
         }
 
+        public override bool IsDefined(Type attributeType, bool inherit)
+        {
+            return attributeProvider.Value.IsDefined(attributeType);
+        }
+
         public override object GetValue(object obj)
         {
             // Make sure type is initialized
@@ -120,7 +125,8 @@ namespace dotnow.Reflection
                 if (obj.IsCLRInstanceOrByRefInstance() == false)
                     throw new InvalidOperationException("Cannot access field value for non CLR instance");
 
-                if (obj is IByRef byRef)
+                IByRef byRef = obj as IByRef;
+                if (byRef != null)
                 {
                     CLRInstance inst = byRef.GetReferenceValue().refValue as CLRInstance;
 
@@ -135,9 +141,38 @@ namespace dotnow.Reflection
             return staticValue;
         }
 
-        public override bool IsDefined(Type attributeType, bool inherit)
+#if API_NET35
+        internal void GetValueStack(StackData obj, ref StackData value)
+#else
+        internal void GetValueStack(in StackData obj, ref StackData value)
+#endif
         {
-            return attributeProvider.Value.IsDefined(attributeType);
+            // Make sure type is initialized
+            declaringType.StaticInitializeType();
+
+            // Check for static
+            if (IsStatic == false)
+            {
+                // Check for instance
+                if (obj.refValue.IsCLRInstanceOrByRefInstance() == false)
+                    throw new InvalidOperationException("Cannot access field value for non CLR instance");
+
+                IByRef byRef = obj.refValue as IByRef;
+                if (byRef != null)
+                {
+                    CLRInstance inst = byRef.GetReferenceValue().refValue as CLRInstance;
+
+                    inst.GetFieldValueStack(this, ref value);
+                    return;
+                }
+
+                // Get value from the instance
+                (obj.refValue as CLRInstance).GetFieldValueStack(this, ref value);
+                return;
+            }
+
+            // Get static value
+            StackData.AllocTyped(ref value, fieldTypeInfo, staticValue);
         }
 
         public override void SetValue(object obj, object value, BindingFlags invokeAttr, Binder binder, CultureInfo culture)
@@ -152,7 +187,8 @@ namespace dotnow.Reflection
                 if (obj.IsCLRInstanceOrByRefInstance() == false)
                     throw new InvalidOperationException("Cannot assign field value for non CLR instance");
 
-                if (obj is IByRef byRef)
+                IByRef byRef = obj as IByRef;
+                if (byRef != null)
                 {
                     CLRInstance inst = byRef.GetReferenceValue().refValue as CLRInstance;
 
